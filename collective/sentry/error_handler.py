@@ -4,6 +4,7 @@
 # The code below is heavily based on the raven.contrib. zope module
 
 import os
+import re
 import logging
 import sentry_sdk
 import sentry_sdk.utils as sentry_utils
@@ -32,6 +33,22 @@ def _before_send(event, hint):
     request = getRequest()
     if not request:
         return event
+
+    msg = hint['log_record'].getMessage()
+    searchObj = re.search('(zExceptions.)[^:]+', msg)
+
+    if searchObj:
+        fingerprint = searchObj.group()
+        print("fingerprint: {}".format(fingerprint))
+        event['fingerprint'] = [
+            '{{ default }}',
+            fingerprint
+        ]
+    # else:
+    #     event['fingerprint'] = [
+    #         '{{ default }}',
+    #         'other'
+    #     ]
 
     # ensure that all header key-value pairs are strings
     headers = dict()
