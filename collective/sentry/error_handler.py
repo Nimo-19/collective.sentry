@@ -15,6 +15,8 @@ from zope.globalrequest import getRequest
 from AccessControl.users import nobody
 from ZPublisher.interfaces import IPubFailure
 from ZPublisher.HTTPRequest import _filterPasswordFields
+from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.logging import ignore_logger
 
 sentry_dsn = os.environ.get("SENTRY_DSN")
 
@@ -24,6 +26,9 @@ is_sentry_optional = os.environ.get("SENTRY_OPTIONAL")
 
 sentry_max_length = os.environ.get("SENTRY_MAX_LENGTH")
 
+ignore_logger("Zope.SiteErrorLog")
+
+LOG = logging.getLogger('unimr.SiteErrorLog')
 
 def _before_send(event, hint):
     """
@@ -33,6 +38,21 @@ def _before_send(event, hint):
     request = getRequest()
     if not request:
         return event
+
+    # print("--------------------")
+    # for attr, value in event.items():
+    #     if(attr == 'modules'):
+    #         continue
+    #     print(attr, value)
+    # print("--------------------")
+
+    # print("++++++++++")
+    # for attr, value in hint.items():
+    #     print(attr, value)
+    # print("++++++++++")
+    # for attr, value in hint['log_record'].__dict__.items():
+    #     print(attr, value)
+    # print("++++++++++")
 
     msg = hint['log_record'].getMessage()
     searchObj = re.search('(zExceptions.)[^:]+', msg)
@@ -130,12 +150,17 @@ if sentry_dsn:
             raise RuntimeError(msg)
         else:
             sentry_utils.MAX_STRING_LENGTH = sentry_max_length
+    sentry_logging = LoggingIntegration(
+        level=logging.INFO,        # Capture info and above as breadcrumbs
+        event_level=logging.ERROR,  # Send errors as events
+    )
 
     sentry_sdk.init(
         sentry_dsn,
         max_breadcrumbs=50,
         before_send=before_send,
-        debug=False
+        debug=True,
+        attach_stacktrace=True
     )
 
     configuration = getConfiguration()
@@ -156,4 +181,15 @@ if sentry_dsn:
 # for the sentry_skd.init() call
 @adapter(IPubFailure)
 def dummy(event):
-    pass
+    print("********************")
+    print("dummy")
+    print(event)
+    print("---------------")
+    for attr, value in event.__dict__.items():
+        if(attr == 'modules'):
+            continue
+        print(attr, value)
+    print("--------------")
+    print("********************")
+    logging.exception("TEST", exc_info=event.exc_info)
+    # sentry_sdk.capture_exception(event.exc_info)
